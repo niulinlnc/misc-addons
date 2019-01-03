@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 #
 #    OpenERP, Open Source Management Solution
@@ -53,7 +52,7 @@ class ProductTag(models.Model):
                 current = current.parent_id
             res[record.id] = name
 
-        return res.items()
+        return list(res.items())
 
     @api.model
     def name_search(self, name, args=None, operator='ilike', limit=100):
@@ -74,5 +73,3 @@ class ProductTemplate(models.Model):
                                relation='product_product_tag_rel',
                                column1='tag_id',
                                column2='product_id')
-
-# vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:

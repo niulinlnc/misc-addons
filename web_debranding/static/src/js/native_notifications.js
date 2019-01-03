@@ -1,38 +1,44 @@
+/*  Copyright 2016-2017 Ivan Yelizariev <https://it-projects.info/team/yelizariev>
+    Copyright 2017 ArtyomLosev <https://github.com/ArtyomLosev>
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl.html). */
 odoo.define('web_debranding.native_notifications', function (require) {
     "use strict";
 
     require('web_debranding.base');
     var session = require('web.session');
+    var BusService = require('bus.BusService');
     var core = require('web.core');
-    var utils = require('mail.utils');
-    var bus = require('bus.bus').bus;
-
     var _t = core._t;
 
-    var _send_native_notification = function (title, content) {
-        var notification = new Notification(title, {body: content, icon: '/web/binary/company_logo?company_id=' + session.company_id});
-        notification.onclick = function () {
-            window.focus();
-            if (this.cancel) {
-                this.cancel();
-            } else if (this.close) {
-                this.close();
+    BusService.include({
+        sendNotification: function (title, content, callback) {
+            if (title === _t('Yay, push notifications are enabled!') || title === _t('Permission denied')) {
+                content = content.replace(/Odoo/ig, odoo.debranding_new_name);
             }
-        };
-    };
-
-    var send_notification_super = utils.send_notification;
-    utils.send_notification = function (title, content) {
-        if (title === 'Permission granted') {
-            content = content.replace(/Odoo/ig, odoo.debranding_new_name);
-        }
-        if (Notification && Notification.permission === "granted") {
-            if (bus.is_master) {
-                _send_native_notification(title, content);
+            if (window.Notification && Notification.permission === "granted") {
+                if (BusService.isMasterTab()) {
+                    this._sendNativeNotification(title, content, callback);
+                }
+            } else {
+                this._super(title, content, callback);
             }
-        } else {
-            send_notification_super(title, content);
-        }
-    };
+        },
+        _sendNativeNotification: function (title, content, callback) {
+            var notification = new Notification(title, {body: content, icon: '/web/binary/company_logo?company_id=' + session.company_id});
+            notification.onclick = function () {
+                window.focus();
+                if (this.cancel) {
+                    this.cancel();
+                } else if (this.close) {
+                    this.close();
+                }
+                if (callback) {
+                    // eslint-disable-next-line
+                    callback();
+                }
+            };
+        },
+    });
 
+    return BusService;
 });

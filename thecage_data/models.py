@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pytz
 from pytz import timezone
 from openerp import models, fields, api
@@ -88,6 +87,10 @@ class SaleOrderLine(models.Model):
     venue_id = fields.Many2one(track_visibility='onchange')
     pitch_id = fields.Many2one(track_visibility='onchange')
     product_id = fields.Many2one(track_visibility='onchange')
+
+    @api.onchange('booking_start')
+    def _on_change_booking_start(self):
+        self.booking_reminder = False
 
     @api.multi
     def write(self, vals):

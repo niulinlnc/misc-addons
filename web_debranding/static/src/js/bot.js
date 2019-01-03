@@ -1,18 +1,24 @@
+/*  Copyright 2016-2017 Ivan Yelizariev <https://it-projects.info/team/yelizariev>
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl.html). */
 odoo.define('web_debranding.bot', function (require) {
     "use strict";
 
     require('web_debranding.dialog');
-    var mail_base = require('mail_base.base');
+    var Message = require('mail.model.Message');
     var session = require('web.session');
 
-    mail_base.MailTools.include({
-        make_message: function(data){
-            var msg = this._super(data);
-            if (msg.author_id === mail_base.ODOOBOT_ID) {
-                msg.avatar_src = '/web/binary/company_logo?company_id=' + session.company_id;
-                msg.displayed_author = 'Bot';
+    Message.include({
+        _getAuthorName: function () {
+            if (this._isOdoobotAuthor()) {
+                return "Bot";
             }
-            return msg;
+            return this._super.apply(this, arguments);
+        },
+        getAvatarSource: function () {
+            if (this._isOdoobotAuthor()) {
+                return '/web/binary/company_logo?company_id=' + session.company_id;
+            }
+            return this._super.apply(this, arguments);
         }
     });
 });

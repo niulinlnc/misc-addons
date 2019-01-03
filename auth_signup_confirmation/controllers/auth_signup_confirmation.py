@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import werkzeug
 from openerp.addons.auth_signup.controllers.main import AuthSignupHome
 from openerp import http
@@ -81,7 +80,7 @@ class AuthConfirm(AuthSignupHome):
             )._signup_create_user(values)
             new_user.active = False
             new_partner = new_user.partner_id
-        redirect_url = werkzeug.url_encode({'redirect': kw['redirect']})
+        redirect_url = werkzeug.url_encode({'redirect': kw.get('redirect') or ''})
         new_partner.signup_prepare()
         signup_url = new_partner.with_context(signup_force_type_in_url='signup/confirm',
                                               signup_valid=True).signup_url

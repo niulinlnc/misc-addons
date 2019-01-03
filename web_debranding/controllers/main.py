@@ -1,15 +1,23 @@
-# -*- coding: utf-8 -*-
-import openerp
-from openerp import http
-from openerp.addons.web.controllers.main import Binary
-from openerp.addons.web.controllers.main import WebClient
-from openerp.addons.web.controllers import main as controllers_main
-import functools
-from openerp.http import request
-from openerp.modules import get_module_resource
-from cStringIO import StringIO
+# Copyright 2015-2018 Ivan Yelizariev <https://it-projects.info/team/yelizariev>
+# Copyright 2016 Stanislav Krotov <https://it-projects.info/team/ufaks>
+# Copyright 2017 Ilmir Karamov <https://it-projects.info/team/ilmir-k>
+# Copyright 2017 Nicolas JEUDY <https://github.com/njeudy>
+# Copyright 2017 Ildar Nasyrov <https://it-projects.info/team/iledarn>
+# Copyright 2018 Kolushov Alexandr <https://it-projects.info/team/KolushovAlexandr>
+# License LGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html).
 
-from ..models.ir_translation import debrand
+import odoo
+from odoo import http
+from odoo.addons.web.controllers.main import Binary
+from odoo.addons.web.controllers.main import WebClient
+from odoo.addons.web.controllers import main as controllers_main
+import functools
+from odoo.http import request
+from odoo.modules import get_module_resource
+import io
+import base64
+
+from ..models.ir_translation import debrand, debrand_bytes
 
 db_monodb = http.db_monodb
 
@@ -25,7 +33,7 @@ class BinaryCustom(Binary):
         imgname = 'logo.png'
         default_logo_module = 'web_debranding'
         if request.session.db:
-            default_logo_module = request.env['ir.config_parameter'].get_param('web_debranding.default_logo_module')
+            default_logo_module = request.env['ir.config_parameter'].sudo().get_param('web_debranding.default_logo_module')
         placeholder = functools.partial(get_module_resource, default_logo_module, 'static', 'src', 'img')
         uid = None
         if request.session.db:
@@ -35,14 +43,14 @@ class BinaryCustom(Binary):
             dbname = db_monodb()
 
         if not uid:
-            uid = openerp.SUPERUSER_ID
+            uid = odoo.SUPERUSER_ID
 
         if not dbname:
             response = http.send_file(placeholder(imgname))
         else:
             try:
                 # create an empty registry
-                registry = openerp.modules.registry.Registry(dbname)
+                registry = odoo.modules.registry.Registry(dbname)
                 with registry.cursor() as cr:
                     cr.execute("""SELECT c.logo_web, c.write_date
                                     FROM res_users u
@@ -52,13 +60,12 @@ class BinaryCustom(Binary):
                                """, (uid,))
                     row = cr.fetchone()
                     if row and row[0]:
-                        image_data = StringIO(str(row[0]).decode('base64'))
+                        image_data = io.BytesIO(base64.b64decode(row[0]))
                         response = http.send_file(image_data, filename=imgname, mtime=row[1])
                     else:
                         response = http.send_file(placeholder('nologo.png'))
             except Exception:
                 response = http.send_file(placeholder(imgname))
-
         return response
 
 
@@ -73,9 +80,8 @@ class WebClientCustom(WebClient):
 
         content, checksum = controllers_main.concat_xml(files)
         if request.context['lang'] == 'en_US':
-            content = content.decode('utf-8')
             # request.env could be not available
-            content = debrand(request.session.db and request.env or None, content)
+            content = debrand_bytes(request.session.db and request.env or None, content)
 
         return controllers_main.make_conditional(
             request.make_response(content, [('Content-Type', 'text/xml')]),
@@ -85,8 +91,8 @@ class WebClientCustom(WebClient):
     def translations(self, mods=None, lang=None):
         res = super(WebClientCustom, self).translations(mods, lang)
 
-        for module_key, module_vals in res['modules'].iteritems():
+        for module_key, module_vals in res['modules'].items():
             for message in module_vals['messages']:
-                message['id'] = request.env['ir.translation']._debrand(message['id'])
-                message['string'] = request.env['ir.translation']._debrand(message['string'])
+                message['id'] = debrand(request.env, message['id'])
+                message['string'] = debrand(request.env, message['string'])
         return res

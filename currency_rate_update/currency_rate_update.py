@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 #
 #    Copyright (c) 2009 Camptocamp SA
@@ -78,9 +77,9 @@ class CurrencyRateUpdateService(models.Model):
         )
     ]
 
-    def _check_max_delta_days(self, cr, uid, ids):
-        for company in self.read(cr, uid, ids, ['max_delta_days']):
-            if company['max_delta_days'] >= 0:
+    def _check_max_delta_days(self):
+        for company in self:
+            if self.max_delta_days >= 0:
                 continue
             else:
                 return False
@@ -113,25 +112,20 @@ class CurrencyRateUpdate(models.Model):
     LOG_NAME = 'cron-rates'
     MOD_NAME = 'currency_rate_update: '
 
-    def get_cron_id(self, cr, uid, context):
+    def get_cron_id(self):
         """return the updater cron's id. Create one if the cron does not exists """
 
         cron_id = 0
-        cron_obj = self.pool.get('ir.cron')
+        cron_obj = self.env['ir.cron']
         try:
             # find the cron that send messages
-            cron_id = cron_obj.search(
-                cr,
-                uid,
+            cron_id = cron_obj.with_context(active_test=False).search(
                 [
                     ('function', 'ilike', self.cron['function']),
                     ('model', 'ilike', self.cron['model'])
-                ],
-                context={
-                    'active_test': False
-                }
+                ]
             )
-            cron_id = int(cron_id[0])
+            cron_id = cron_id[0].id
         except Exception:
             _logger.info('warning cron not found one will be created')
             pass  # ignore if the cron is missing cause we are going to create it in db
@@ -140,36 +134,35 @@ class CurrencyRateUpdate(models.Model):
         if not cron_id:
             # translate
             self.cron['name'] = _('Currency Rate Update')
-            cron_id = cron_obj.create(cr, uid, self.cron, context)
+            cron_id = cron_obj.create(self.cron)
 
         return cron_id
 
-    def save_cron(self, cr, uid, datas, context=None):
+    def save_cron(self, datas):
         """save the cron config data should be a dict"""
-        context = context or {}
         # modify the cron
-        cron_id = self.get_cron_id(cr, uid, context)
-        self.pool.get('ir.cron').write(cr, uid, [cron_id], datas)
+        cron_id = self.get_cron_id()
+        self.env['ir.cron'].write([cron_id], datas)
 
-    def run_currency_update(self, cr, uid):
+    def run_currency_update(self):
         "update currency at the given frequence"
         factory = CurrencyGetterFactory()
-        curr_obj = self.pool.get('res.currency')
-        rate_obj = self.pool.get('res.currency.rate')
-        companies = self.pool.get('res.company').search(cr, uid, [])
-        for comp in self.pool.get('res.company').browse(cr, uid, companies):
+        curr_obj = self.env['res.currency']
+        rate_obj = self.env['res.currency.rate']
+        companies = self.env['res.company'].search()
+        for comp in companies:
             # the multi company currency can beset or no so we handle
             # the two case
             if not comp.auto_currency_up:
                 continue
             # we initialise the multi compnay search filter or not serach filter
             # we fetch the main currency looking for currency with base = true. The main rate should be set at  1.00
-            main_curr_ids = curr_obj.search(cr, uid, [('base', '=', True), ('company_id', '=', comp.id)])
+            main_curr_ids = curr_obj.search([('base', '=', True), ('company_id', '=', comp.id)])
             if not main_curr_ids:
                 # If we can not find a base currency for this company we look for one with no company set
-                main_curr_ids = curr_obj.search(cr, uid, [('base', '=', True), ('company_id', '=', False)])
+                main_curr_ids = curr_obj.search([('base', '=', True), ('company_id', '=', False)])
             if main_curr_ids:
-                main_curr_rec = curr_obj.browse(cr, uid, main_curr_ids[0])
+                main_curr_rec = main_curr_ids[0]
             else:
                 raise orm.except_orm(_('Error!'), ('There is no base currency set!'))
             if main_curr_rec.rate != 1:
@@ -183,7 +176,7 @@ class CurrencyRateUpdate(models.Model):
                     # and return a dict of rate
                     getter = factory.register(service.service)
 
-                    curr_to_fetch = map(lambda x: x.name, service.currency_to_update)
+                    curr_to_fetch = [x.name for x in service.currency_to_update]
                     res, log_info = getter.get_updated_currency(curr_to_fetch, main_curr, service.max_delta_days)
                     rate_name = time.strftime('%Y-%m-%d')
                     for curr in service.currency_to_update:
@@ -201,11 +194,7 @@ class CurrencyRateUpdate(models.Model):
                                 'rate': res[curr.name],
                                 'name': rate_name
                             }
-                            rate_obj.create(
-                                cr,
-                                uid,
-                                vals,
-                            )
+                            rate_obj.create(vals)
 
                     # show the most recent note at the top
                     note = "\n%s currency updated. "\
@@ -343,8 +332,8 @@ class CurrenyGetterInterface(object):
     def get_url(self, url):
         """Return a string of a get url query"""
         try:
-            import urllib
-            objfile = urllib.urlopen(url)
+            import urllib.request, urllib.parse, urllib.error
+            objfile = urllib.request.urlopen(url)
             rawfile = objfile.read()
             objfile.close()
             return rawfile
@@ -581,7 +570,7 @@ class BanxicoGetter(CurrenyGetterInterface):  # class added for Mexico rates
         url = 'http://www.banxico.org.mx/rsscb/rss?BMXC_canal=pagos&BMXC_idioma=es'
 
         from xml.dom.minidom import parse
-        from StringIO import StringIO
+        from io import StringIO
 
         logger = logging.getLogger(__name__)
         logger.debug("Banxico currency rate service : connecting...")

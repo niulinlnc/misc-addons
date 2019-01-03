@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Attachment Url",
     "summary": """Use attachment URL and upload data to external storage""",
     "category": "Tools",
     "images": [],
-    "version": "1.1.1",
+    "version": "12.0.1.1.8",
     "application": False,
 
     "author": "IT-Projects LLC, Ildar Nasyrov",
-    "website": "https://it-projects.info",
+    "website": "https://apps.odoo.com/apps/modules/12.0/ir_attachment_url/",
     "license": "AGPL-3",
     "price": 30.00,
     "currency": "EUR",
@@ -19,6 +18,7 @@
     "external_dependencies": {"python": [], "bin": []},
     "data": [
         "views/ir_attachment_url_template.xml",
+        "demo/ir_attachment.xml",
     ],
     "qweb": [
         "static/src/xml/ir_attachment_url.xml",
